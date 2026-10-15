@@ -26,6 +26,30 @@ aac_qt_entry:
     jmp *aac_qt_fallback(%rip)
 .size aac_qt_entry,.-aac_qt_entry
 
+// Resolve 21.1.1: reader r13, fourcc r12d, stream rbx, codec r15, flag 0x8(%rsp).
+.hidden aac_qt_entry_21_1
+.global aac_qt_entry_21_1
+.type aac_qt_entry_21_1,@function
+aac_qt_entry_21_1:
+    cmpl $0x61616320, %r12d
+    jne .Loriginal_21_1
+    movq %r13, %rdi
+    movl %ebp, %esi
+    call aac_qt_make
+    testq %rax, %rax
+    je .Loriginal_21_1
+    movq %rax, %r15
+    movq $1, 0x8(%rsp)
+    jmp *aac_qt_ready(%rip)
+.Loriginal_21_1:
+    movq (%r13), %rax
+    movq %r13, %rdi
+    movl %ebp, %esi
+    call *0x60(%rax)
+    movq %rax, %rbx
+    jmp *aac_qt_fallback(%rip)
+.size aac_qt_entry_21_1,.-aac_qt_entry_21_1
+
 .hidden aac_mkv_gate
 .hidden aac_mkv_probe
 .hidden aac_mkv_dispatch

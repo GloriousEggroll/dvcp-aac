@@ -64,6 +64,13 @@ with 44.1 kHz mono and 48 kHz stereo test files; stereo PCM output was checked,
 and a user confirmed import/playback of an actual MKV with the updated decoder.
 MKV MP3, AC3 and FLAC control tracks still import through their native paths.
 
+Studio **21.1.1.0010, Linux x86-64** is also recognized. That build moved the
+QuickTime dispatch to different registers and added a field to
+`IOPluginAudioCodec` (fields shifted by 0x18), so the scanner carries a second
+signature layout and a matching entry stub. Validated there: scanner self-test,
+bridge activation, and import/playback of AAC-LC stereo 48 kHz in MP4. The MKV
+signatures are discovered on 21.1.1 but MKV playback was not tested on it.
+
 For MKV, the bridge retains `A_AAC` tracks that Resolve otherwise drops, reads
 the track's AudioSpecificConfig, and selects the plugin decoder. Resolve still
 handles the container and video; compressed AAC packets are decoded on demand

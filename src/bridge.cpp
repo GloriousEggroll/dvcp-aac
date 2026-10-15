@@ -18,6 +18,7 @@
 
 extern "C" {
 void aac_qt_entry();
+void aac_qt_entry_21_1();
 void aac_mkv_gate();
 void aac_mkv_probe();
 void aac_mkv_dispatch();
@@ -83,12 +84,40 @@ static uintptr_t branch(const std::vector<Region>& rs,uintptr_t pc) {
 }
 bool discover(const std::vector<Region>& rs,Targets& out,std::string& error) {
     // Register assignments, virtual call slot and the ALAC fallback are checked.
-    auto sites=find(rs,"49 8b 04 24 4c 89 e3 4c 89 e7 89 ee ff 50 60 49 89 c4 48 85 c0 0f 94 c0 41 81 ff 63 61 6c 61 0f 95 c1 08 c1 0f 85 ?? ?? ?? ?? bf c8 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 b0 01 48 89 44 24 20 4c 89 ef 4c 89 e6 e8 ?? ?? ?? ?? 49 89 dc e9 ?? ?? ?? ??");
-    if(sites.size()!=1) {error="QuickTime dispatch signature is absent or ambiguous";return false;}
+    // Each layout describes one known compiler output of the QuickTime reader.
+    struct Layout {
+        const char *name,*dispatch,*gate,*ctor,*integerFormat;
+        size_t readyJump,nativeAlloc,vtableImmediate;
+    };
+    static const Layout layouts[]={
+        {"21.0.4",
+         "49 8b 04 24 4c 89 e3 4c 89 e7 89 ee ff 50 60 49 89 c4 48 85 c0 0f 94 c0 41 81 ff 63 61 6c 61 0f 95 c1 08 c1 0f 85 ?? ?? ?? ?? bf ?? 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 b0 01 48 89 44 24 20 4c 89 ef 4c 89 e6 e8 ?? ?? ?? ?? 49 89 dc e9 ?? ?? ?? ??",
+         "44 89 f8 25 00 ff ff ff 3d 00 63 61 61 0f 95 c0 41 81 e7 ff ff ff 00 41 81 ff 63 61 61 00 0f 95 c1 84 c8 0f 85",
+         "55 41 57 41 56 41 55 41 54 53 48 83 ec ?? 49 89 f7 48 89 fb 48 89 77 08 48 c7 c0 ?? ?? ?? ?? 48 83 c0 10 48 89 07 c6 47 10 00 48 c7 47 18 00 00 00 00",
+         "55 41 57 41 56 53 50 39 b7 f0 00 00 00 0f 84 ?? ?? ?? ?? 48 89 fb 89 b7 f0 00 00 00 bf 78 00 00 00 89 f5 e8 ?? ?? ?? ?? f2 0f 10 43 40 f2 0f 59 05 ?? ?? ?? ?? 49 89 c6 8b 83 dc 00 00 00 f2 48 0f 2a c8 8b 83 d8 00 00 00 f2 48 0f 2a d0 f2 0f 58 d1 f2 0f 58 d0 f2 48 0f 2c f2 8b 4b 58 4c 89 f7 89 ea e8 ?? ?? ?? ?? 4c 8b bb d0 00 00 00 4c 89 b3 d0 00 00 00 4d 85 ff 74 ?? 4c 89 ff e8 ?? ?? ?? ?? be 78 00 00 00 4c 89 ff e8 ?? ?? ?? ?? 66 0f 57 c0 66 0f 11 83 e0 00 00 00 b0 01 48 83 c4 08 5b 41 5e 41 5f 5d c3",
+         76,47,27},
+        // 21.1.1: reader r13, fourcc r12d, stream rbx, codec r15, flag [rsp+8];
+        // IOPluginAudioCodec gained a std::string at +0x10 (fields moved by 0x18).
+        {"21.1.1",
+         "49 8b 45 00 4c 89 ef 89 ee ff 50 60 48 89 c3 48 85 c0 0f 94 c0 41 81 fc 63 61 6c 61 0f 95 c1 08 c1 75 ?? bf ?? 00 00 00 e8 ?? ?? ?? ?? 49 89 c7 b0 01 48 89 44 24 08 4c 89 ff 48 89 de e8 ?? ?? ?? ?? e9 ?? ?? ?? ??",
+         "44 89 e0 25 00 ff ff ff 3d 00 63 61 61 0f 95 c0 41 81 e4 ff ff ff 00 41 81 fc 63 61 61 00 0f 95 c1 84 c8 0f 85",
+         "55 41 57 41 56 41 55 41 54 53 48 83 ec ?? 49 89 f7 48 89 fb 48 89 77 08 48 8d 47 18 66 0f ef c0 f3 0f 7f 47 18 48 89 47 10 48 c7 c0 ?? ?? ?? ?? 48 83 c0 10 48 89 07 c6 47 28 00 48 c7 47 30 00 00 00 00",
+         "55 41 57 41 56 53 50 39 b7 08 01 00 00 0f 84 ?? ?? ?? ?? 48 89 fb 89 b7 08 01 00 00 bf 78 00 00 00 89 f5 e8 ?? ?? ?? ?? f2 0f 10 43 58 f2 0f 59 05 ?? ?? ?? ?? 49 89 c6 8b 83 f4 00 00 00 f2 48 0f 2a c8 8b 83 f0 00 00 00 f2 48 0f 2a d0 f2 0f 58 d1 f2 0f 58 d0 f2 48 0f 2c f2 8b 4b 70 4c 89 f7 89 ea e8 ?? ?? ?? ?? 4c 8b bb e8 00 00 00 4c 89 b3 e8 00 00 00 4d 85 ff 74 ?? 4c 89 ff e8 ?? ?? ?? ?? be 78 00 00 00 4c 89 ff e8 ?? ?? ?? ?? 66 0f 57 c0 66 0f 11 83 f8 00 00 00 b0 01 48 83 c4 08 5b 41 5e 41 5f 5d c3",
+         66,40,44},
+    };
+    const Layout* layout=nullptr;std::vector<uintptr_t> sites;
+    for(const auto& l:layouts) {
+        auto hits=find(rs,l.dispatch);
+        if(hits.empty())continue;
+        if(layout||hits.size()!=1) {error="QuickTime dispatch signature is absent or ambiguous";return false;}
+        layout=&l;sites=hits;
+    }
+    if(!layout) {error="QuickTime dispatch signature is absent or ambiguous";return false;}
     auto allocations=find(rs,"bf ?? ?? ?? ?? e8 ?? ?? ?? ?? 49 89 c4 48 89 c7 48 89 de e8 ?? ?? ?? ?? 40 84 ed 75 09 49 8b 06");
     if(allocations.size()!=1) {error="Audio plugin constructor call is absent or ambiguous";return false;}
-    Targets t;t.dispatch=sites[0];t.ready=relative(rs,t.dispatch+76);
-    auto gate=pattern("44 89 f8 25 00 ff ff ff 3d 00 63 61 61 0f 95 c0 41 81 e7 ff ff ff 00 41 81 ff 63 61 61 00 0f 95 c1 84 c8 0f 85");
+    Targets t;t.layout=size_t(layout-layouts);t.vtableImmediate=layout->vtableImmediate;
+    t.dispatch=sites[0];t.ready=relative(rs,t.dispatch+layout->readyJump);
+    auto gate=pattern(layout->gate);
     auto ready=read(rs,t.ready,gate.size());
     if(!ready||!code(rs,t.ready,gate.size())||!match(ready,gate)) {error="AAC delay-wrapper continuation does not match";return false;}
     uintptr_t a=allocations[0];uint32_t objectSize=0;
@@ -96,10 +125,10 @@ bool discover(const std::vector<Region>& rs,Targets& out,std::string& error) {
     t.allocator=relative(rs,a+5);t.constructor=relative(rs,a+19);
     if(t.objectSize<0x100||t.objectSize>0x1000||!code(rs,t.allocator,6)) {error="Invalid decoder allocation size or allocator";return false;}
     // Validate the constructor's input/field layout, then identify its C++ RTTI.
-    auto ctor=pattern("55 41 57 41 56 41 55 41 54 53 48 83 ec ?? 49 89 f7 48 89 fb 48 89 77 08 48 c7 c0 ?? ?? ?? ?? 48 83 c0 10 48 89 07 c6 47 10 00 48 c7 47 18 00 00 00 00");
+    auto ctor=pattern(layout->ctor);
     const auto* c=read(rs,t.constructor,ctor.size());
     if(!c||!code(rs,t.constructor,ctor.size())||!match(c,ctor)) {error="Decoder constructor ABI is not recognized";return false;}
-    int32_t vtable=0;memcpy(&vtable,c+27,4);t.vtable=uintptr_t(intptr_t(vtable))+16;
+    int32_t vtable=0;memcpy(&vtable,c+layout->vtableImmediate,4);t.vtable=uintptr_t(intptr_t(vtable))+16;
     const auto* v=read(rs,t.vtable-8,8);uintptr_t type=0,name=0;
     if(v)memcpy(&type,v,8);
     const auto* rtti=read(rs,type+8,8);if(rtti)memcpy(&name,rtti,8);
@@ -111,14 +140,14 @@ bool discover(const std::vector<Region>& rs,Targets& out,std::string& error) {
     }
     if(t.vtableEntries<8||t.vtableEntries>=32) {error="Audio decoder vtable shape is not recognized";return false;}
     uintptr_t format=0;memcpy(&format,read(rs,t.vtable+16,8),8);
-    auto integerFormat=pattern("55 41 57 41 56 53 50 39 b7 f0 00 00 00 0f 84 ?? ?? ?? ?? 48 89 fb 89 b7 f0 00 00 00 bf 78 00 00 00 89 f5 e8 ?? ?? ?? ?? f2 0f 10 43 40 f2 0f 59 05 ?? ?? ?? ?? 49 89 c6 8b 83 dc 00 00 00 f2 48 0f 2a c8 8b 83 d8 00 00 00 f2 48 0f 2a d0 f2 0f 58 d1 f2 0f 58 d0 f2 48 0f 2c f2 8b 4b 58 4c 89 f7 89 ea e8 ?? ?? ?? ?? 4c 8b bb d0 00 00 00 4c 89 b3 d0 00 00 00 4d 85 ff 74 ?? 4c 89 ff e8 ?? ?? ?? ?? be 78 00 00 00 4c 89 ff e8 ?? ?? ?? ?? 66 0f 57 c0 66 0f 11 83 e0 00 00 00 b0 01 48 83 c4 08 5b 41 5e 41 5f 5d c3");
+    auto integerFormat=pattern(layout->integerFormat);
     const auto* fmt=read(rs,format,integerFormat.size());
     if(!fmt||!match(fmt,integerFormat)) {error="Plugin PCM format implementation changed; conversion must be reviewed";return false;}
     // The allocator must be the same one the neighboring native branch uses.
-    if(relative(rs,t.dispatch+47)!=t.allocator) {error="Native and plugin allocation functions disagree";return false;}
+    if(relative(rs,t.dispatch+layout->nativeAlloc)!=t.allocator) {error="Native and plugin allocation functions disagree";return false;}
     auto mkv=find(rs,"49 8d 54 24 79 8b 32 bf 41 5f 41 41 31 fe 0f b6 52 04 83 f2 43 09 f2 0f 84 ?? ?? ?? ?? f6 c1 01 0f 84 ?? ?? ?? ??");
     auto descriptor=find(rs,"b8 03 00 00 00 31 db 48 8d 4c 24 38 66 0f ef c0 f3 0f 7f 01 c6 41 10 00 b9 ff ff ff ff 48 89 4c 24 4c c7 44 24 54 00 00 00 00 66 c7 44 24 58 01 00 4c 89 64 24 30 89 44 24 38 31 ed eb 18 0f 1f 80 00 00 00 00 48 8d 45 01 48 83 fd 08 48 89 c5 0f 87 ?? ?? ?? ??");
-    auto mkvCodecs=find(rs,"41 8b 47 08 83 f8 02 0f 84 ?? ?? ?? ?? 83 f8 03 0f 84 ?? ?? ?? ?? 83 f8 07 0f 85 ?? ?? ?? ?? bf c8 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 48 89 c7 48 8b 74 24 20 e8 ?? ?? ?? ?? e9 ?? ?? ?? ??");
+    auto mkvCodecs=find(rs,"41 8b 47 08 83 f8 02 0f 84 ?? ?? ?? ?? 83 f8 03 0f 84 ?? ?? ?? ?? 83 f8 07 0f 85 ?? ?? ?? ?? bf ?? 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 48 89 c7 48 8b 74 24 20 e8 ?? ?? ?? ?? e9 ?? ?? ?? ??");
     auto privateData=find(rs,"4c 89 64 24 30 c7 44 24 38 07 00 00 00 49 8d b4 24 90 00 00 00 4c 8d 44 24 30 e8 ?? ?? ?? ?? e9 ?? ?? ?? ??");
     if(mkv.size()!=1 || descriptor.size()!=1 || mkvCodecs.size()!=1 || privateData.size()!=1) {
         error="Matroska AAC metadata/decoder signatures are absent or ambiguous";return false;
@@ -128,7 +157,7 @@ bool discover(const std::vector<Region>& rs,Targets& out,std::string& error) {
     t.mkvDispatch=mkvCodecs[0]+4;t.mkvOther=t.mkvDispatch+9;
     t.mkvMP3=branch(rs,t.mkvDispatch+3);t.mkvFailure=branch(rs,t.mkvDispatch+21);t.mkvReady=t.mkvMP3+26;
     auto finalPattern=pattern("48 8b 44 24 30 48 85 c0 0f 84 ?? ?? ?? ?? 48 83 38 00 0f 84 ?? ?? ?? ?? 83 7c 24 3c 00 0f 84 ?? ?? ?? ?? 83 7c 24 40 00 0f 84 ?? ?? ?? ?? 83 7c 24 44 00 0f 84");
-    auto formatPattern=pattern("bf c8 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 48 89 c7 48 8b 74 24 20 e8 ?? ?? ?? ?? 41 8b 77 10 41 8b 57 14 41 0f b6 4f 18 49 8b 45 00 4c 89 ef ff 50 10");
+    auto formatPattern=pattern("bf ?? 00 00 00 e8 ?? ?? ?? ?? 49 89 c5 48 89 c7 48 8b 74 24 20 e8 ?? ?? ?? ?? 41 8b 77 10 41 8b 57 14 41 0f b6 4f 18 49 8b 45 00 4c 89 ef ff 50 10");
     auto finish=read(rs,t.mkvFinalize,finalPattern.size());auto fmtMkv=read(rs,t.mkvMP3,formatPattern.size());
     if(!finish || !match(finish,finalPattern) || !fmtMkv || !match(fmtMkv,formatPattern) ||
        relative(rs,t.mkvMP3+5)!=t.allocator || relative(rs,privateData[0]+31)!=t.mkvFinalize ||
@@ -155,7 +184,7 @@ bool install() {
     std::vector<Region> rs;dl_iterate_phdr(collect,&rs);
     Targets t;std::string error;
     if(!discover(rs,t,error)) {log(("INACTIVE: "+error).c_str());return false;}
-    char info[256];snprintf(info,sizeof(info),"discovered dispatch=%p continuation=%p constructor=%p vtable=%p size=%zu",(void*)t.dispatch,(void*)t.ready,(void*)t.constructor,(void*)t.vtable,t.objectSize);log(info);
+    char info[256];snprintf(info,sizeof(info),"discovered layout=%zu dispatch=%p continuation=%p constructor=%p vtable=%p size=%zu",t.layout,(void*)t.dispatch,(void*)t.ready,(void*)t.constructor,(void*)t.vtable,t.objectSize);log(info);
     // Keep bridge code loaded for the lifetime of the process. Installation is
     // only attempted by msgPluginStart, before Resolve opens any media/project.
     Dl_info self;
@@ -168,7 +197,7 @@ bool install() {
     if(stubs==MAP_FAILED){log("INACTIVE: cannot allocate nearby jump stubs");return false;}
     struct Edit {uintptr_t address;std::vector<uint8_t> bytes,original;};
     std::vector<Edit> edits;
-    uint8_t qt[15]={0xff,0x25,0,0,0,0};uintptr_t qtEntry=reinterpret_cast<uintptr_t>(&aac_qt_entry);
+    uint8_t qt[15]={0xff,0x25,0,0,0,0};uintptr_t qtEntry=reinterpret_cast<uintptr_t>(t.layout==1?&aac_qt_entry_21_1:&aac_qt_entry);
     memcpy(qt+6,&qtEntry,8);qt[14]=0x90;
     edits.push_back({t.dispatch,std::vector<uint8_t>(qt,qt+15),{}});
     uintptr_t sites[]={t.mkvGate,t.mkvProbe,t.mkvDispatch};size_t sizes[]={6,11,9};

@@ -15,6 +15,8 @@ host code before activating. Passing its checks does not establish support for
 every Resolve version. Other AAC profiles, channel layouts, multiple AAC tracks
 and sample-accurate delay/tail trimming need testing. End-of-stream decoding is
 bounded to prevent a waveform-generation loop on partial final AAC frames.
+Also tested: Studio 21.1.1.0010, MP4 AAC-LC stereo 48 kHz import/playback; MKV
+is recognized there but untested.
 
 Install (Python 3.8 or newer):
   1. Save your project and fully quit Resolve.

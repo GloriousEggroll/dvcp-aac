@@ -22,7 +22,7 @@ int main(int argc,char**argv) {
     }
     AACBridge::Targets t;std::string error;
     if(!AACBridge::discover(rs,t,error)){fprintf(stderr,"Refused: %s\n",error.c_str());return 1;}
-    printf("dispatch=%lx ready=%lx allocator=%lx constructor=%lx vtable=%lx size=%zu\n",t.dispatch,t.ready,t.allocator,t.constructor,t.vtable,t.objectSize);
+    printf("layout=%zu dispatch=%lx ready=%lx allocator=%lx constructor=%lx vtable=%lx size=%zu\n",t.layout,t.dispatch,t.ready,t.allocator,t.constructor,t.vtable,t.objectSize);
     printf("Matroska gate=%lx metadata=%lx finalize=%lx dispatch=%lx ready=%lx\n",t.mkvGate,t.mkvProbe,t.mkvFinalize,t.mkvDispatch,t.mkvReady);
     if(argc==3 && std::string(argv[2])=="--test") {
         auto ptr=[&](uintptr_t va)->uint8_t* {
@@ -46,7 +46,7 @@ int main(int argc,char**argv) {
         auto add64=[&](uintptr_t va){uint64_t n;memcpy(&n,ptr(va),8);n+=shift;memcpy(ptr(va),&n,8);};
         add64(t.vtable-8);add64(type+8);
         for(size_t i=0;i<t.vtableEntries;i++)add64(t.vtable+8*i);
-        uint32_t vt;memcpy(&vt,ptr(t.constructor+27),4);vt+=shift;memcpy(ptr(t.constructor+27),&vt,4);
+        uint32_t vt;memcpy(&vt,ptr(t.constructor+t.vtableImmediate),4);vt+=shift;memcpy(ptr(t.constructor+t.vtableImmediate),&vt,4);
         for(auto& r:rs)r.address+=shift;
         AACBridge::Targets moved;assert(AACBridge::discover(rs,moved,error));
         assert(moved.dispatch==t.dispatch+shift&&moved.constructor==t.constructor+shift&&moved.ready==t.ready+shift&&moved.vtable==t.vtable+shift);
